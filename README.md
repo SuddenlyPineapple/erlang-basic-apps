@@ -17,16 +17,20 @@ The -pa <directory> option tells the Erlang VM to add that path to the places it
 <0.34.0>
 2> evserv:subscribe(self()).
 {ok,#Ref<0.0.0.31>}
-3> evserv:add_event("Hey there", "test", FutureDateTime).
+3> evserv:add_event("Hey there", "test", FutureDateTime). # where FutureDateTime = {{2020,11,24},{22,11,0}}
 ok
 4> evserv:listen(5).
 []
 5> evserv:cancel("Hey there").
 ok
-6> evserv:add_event("Hey there2", "test", NextMinuteDateTime).
+6> evserv:add_event("Hey there2", "test", NextMinuteDateTime, Reminders). # Where reminders is list of dates with hours like FutureDateTime 
 ok
 7> evserv:listen(2000).
 [{done,"Hey there2","test"}]
+```
+
+```
+evserv:add_event_with_reminders("Hey there2", "test", {{2020,11,26},{16,51,0}}, [{{2020,11,26},{16,52,0}}, {{2020,11,26},{16,53,0}}]).
 ```
 
 ## Example of using it with supervisor
