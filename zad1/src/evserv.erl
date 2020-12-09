@@ -8,7 +8,8 @@
 -record(event, {name="",
                 description="",
                 pid,
-                timeout={{1970,1,1},{0,0,0}}
+                timeout={{1970,1,1},{0,0,0}},
+                reminders=[]
             }).
 
 %%% User Interface
@@ -65,6 +66,15 @@ add_event2(Name, Description, TimeOut) ->
         {error, timeout}
     end.
 
+add_event_with_reminders(Name, Description, TimeOut, Reminders) ->
+    Ref = make_ref(),
+    ?MODULE ! {self(), Ref, {add, Name, Description, TimeOut, Reminders}},
+    receive
+        {Ref, Msg} -> Msg
+    after 5000 ->
+        {error, timeout}
+    end.
+
 cancel(Name) ->
     Ref = make_ref(),
     ?MODULE ! {self(), Ref, {cancel, Name}},
@@ -107,11 +117,31 @@ loop(S=#state{}) ->
                     Pid ! {MsgRef, {error, bad_timeout}},
                     loop(S)
             end;
+        {Pid, MsgRef, {add, Name, Description, TimeOut, Reminders}} ->
+            case valid_datetime(TimeOut) of
+                true ->
+                    EventPid = event:start_link(Name, TimeOut),
+                    NewEvents = orddict:store(Name,
+                                            #event{name=Name,
+                                                    description=Description,
+                                                    pid=EventPid,
+                                                    timeout=TimeOut,
+                                                    reminders=Reminders
+                                                },
+                                            S#state.events),
+                    NewEventsWithReminders = create_reminders(Reminders, Name, NewEvents, TimeOut, 0),
+                    Pid ! {MsgRef, ok},
+                    loop(S#state{events=NewEventsWithReminders});
+                false ->
+                    Pid ! {MsgRef, {error, bad_timeout}},
+                    loop(S)
+            end;
         {Pid, MsgRef, {cancel, Name}} ->
             Events = case orddict:find(Name, S#state.events) of
                         {ok, E} ->
                             event:cancel(E#event.pid),
-                            orddict:erase(Name, S#state.events);
+                            TmpEvents = orddict:erase(Name, S#state.events),
+                            cancel_reminders(Name, TmpEvents);
                         error ->
                             S#state.events
                     end,
@@ -120,8 +150,12 @@ loop(S=#state{}) ->
         {done, Name} ->
             case orddict:find(Name, S#state.events) of
                 {ok, E} ->
-                    send_to_clients({done, E#event.name, E#event.description},
-                                    S#state.clients),
+                    send_to_clients({
+                            done, 
+                            E#event.name, 
+                            parse_description(E#event.description, E#event.reminders)
+                        },
+                        S#state.clients),
                     NewEvents = orddict:erase(Name, S#state.events),
                     loop(S#state{events=NewEvents});
                 error ->
@@ -167,3 +201,52 @@ valid_time(H,M,S) when  H >= 0, H < 24,
                         S >= 0, S < 60 -> true;
 valid_time(_,_,_) -> false.
 
+
+create_reminders([Reminder|Reminders], Name, NewEvents, TimeOut, SpawnedNumber) -> 
+    ReminderName = "Reminder_" ++ integer_to_list(SpawnedNumber) ++ "_of_event_" ++ Name,
+    EventPid = event:start_link(ReminderName, Reminder),
+    RemindersStore = orddict:store(ReminderName,
+                        #event{name=ReminderName,
+                                description=TimeOut,
+                                pid=EventPid,
+                                timeout=Reminder,
+                                reminders=[]
+                            },
+                        NewEvents),
+    create_reminders(Reminders, Name, RemindersStore, TimeOut, SpawnedNumber+1);
+create_reminders([], _, NewEvents, _, _) -> NewEvents.
+
+cancel_reminders(Name, Events) -> 
+    orddict:filter(
+        fun(Key, Value) -> 
+            event:cancel(Value#event.pid),
+            string:str(Key, Name) == 0 
+        end, 
+        Events
+    ).
+
+parse_description(TimeOut={{_,_,_}, {_,_,_}}, []) -> 
+    Now  = calendar:local_time(),
+    Seconds = calendar:datetime_to_gregorian_seconds(TimeOut) - calendar:datetime_to_gregorian_seconds(Now),
+    getLeftTimeString(Seconds);
+parse_description(Description, _) -> Description.
+
+getLeftTimeString(Sec) ->
+    {Days, {Hours, Minutes, Seconds}} = calendar:seconds_to_daystime(Sec),
+    "There is " ++
+        case Days > 0 of
+          true -> integer_to_list(Days) ++ " day/s " ;
+          false -> ""
+        end ++
+        case Hours > 0 of
+          true -> integer_to_list(Hours) ++ " hour/s " ;
+          false -> ""
+        end ++
+        case Minutes > 0 of
+            true -> integer_to_list(Minutes) ++ " minute/s " ;
+            false -> ""
+        end ++
+        case Seconds > 0 of
+            true -> integer_to_list(Minutes) ++ " second/s " ;
+            false -> ""
+        end ++ " left. " ++ integer_to_list(Sec).
