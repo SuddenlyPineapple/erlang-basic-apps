@@ -11,7 +11,7 @@ The -pa <directory> option tells the Erlang VM to add that path to the places it
 ## Another option to compile everyting in running shell is call below function
 `make:all([load]).`
 
-## Example of using application
+## Example of using application (zad 1)
 ```
 1> evserv:start().
 <0.34.0>
