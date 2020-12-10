@@ -2,12 +2,13 @@
 -behaviour(gen_fsm).
 
 %% public API
--export([start/1, start_link/1, trade/3, check_trades/2, 
+-export([start/1, start_link/1, trade/3, 
+    check_trades/2, is_transaction_success/1,
     get_proposition/1, make_offer/2, retract_offer/2, ready/2, cancel/1]).
 %% gen_fsm callbacks
--export([init/1, 
+-export([init/1, terminate/3,
          % custom state names
-          idle/2, idle_wait/2, negotiate/2, checkifbothready/2]).
+          idle/2, idle_wait/2, negotiate/2, both_ready/2]).
 
 
 -record(state, {name="",
@@ -53,6 +54,9 @@ check_trades(SecondPid, BrokerPid) ->
 get_proposition(BrokerPid) ->
      gen_fsm:send_event(BrokerPid, {check_propositions}).
 
+is_transaction_success(BrokerPid) ->
+    gen_fsm:send_event(BrokerPid, {is_transaction_success}).
+
 %%% GEN_FSM API =========================================================
 init(Name) ->
     {ok, idle, #state{name=Name}}. 
@@ -81,9 +85,11 @@ negotiate({check_propositions},S=#state{itemsSecond=SecondItems, secondPid=Secon
     notice(FirstPid, "looks at proposition", []),
     FirstPid ! {SecondItems, SecondPid},
     {next_state, negotiate, S};
-negotiate({ready, Pid},S=#state{secondPid=SecondPid, firstPid=FirstPid}) ->
+negotiate({ready, Pid},S=#state{secondPid=SecondPid, firstPid=FirstPid, firstReady=FirstReady, secondReady=SecondReady}) ->
     notice(Pid, "is ready", []),
     if 
+        Pid == FirstPid andalso SecondReady == true -> {next_state, both_ready, S#state{firstReady=true}};
+        Pid == SecondPid andalso FirstReady == true-> {next_state, both_ready, S#state{secondReady=true}};
         Pid == FirstPid -> {next_state, negotiate, S#state{firstReady=true}};
         Pid == SecondPid -> {next_state, negotiate, S#state{secondReady=true}};
         true -> {next_state, negotiate, S}
@@ -92,9 +98,20 @@ negotiate(Event, Data) ->
     unexpected(Event, negotiate),
     {next_state, negotiate, Data}.
 
-checkifbothready(Event, Data) ->
-    unexpected(Event, negotiate),
-    {next_state, negotiate, Data}.
+both_ready({is_transaction_success},S=#state{secondPid=SecondPid, firstPid=FirstPid, itemsFirst=FirstItems, itemsSecond=SecondItems}) ->
+    FirstPid ! {SecondItems},
+    SecondPid ! {FirstItems},
+    io:format("Transaction is commited and complete~n"),
+    {stop, normal, S};
+both_ready(Event, Data) ->
+    unexpected(Event, ready),
+    {next_state, ready, Data}.
+
+%% Transaction completed.
+terminate(normal, both_ready, S=#state{}) ->
+    io:format("Broker shutdown~n");
+terminate(_Reason, _StateName, _StateData) ->
+    ok.
 
 %%% PRIVATE FUNCTIONS ======================================================================
 

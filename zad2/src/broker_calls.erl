@@ -24,10 +24,10 @@ a(BrokerPid) ->
     fsm_broker:make_offer(BrokerPid, "horse"),
     fsm_broker:make_offer(BrokerPid, "sword"),
     fsm_broker:ready(self(), BrokerPid),
-        timer:sleep(200).
-    % fsm_broker:is_transaction_success(self(), TradeId, BrokerPid),
-    % receive IsSuccess -> io:format("Is transaction success: ~p~n", [IsSuccess]) end,
-    %     timer:sleep(1000).
+        timer:sleep(200),
+    % fsm_broker:is_transaction_success(BrokerPid),
+    receive {IsSuccess} -> io:format("Carl got items in exchange: ~p ~n", [IsSuccess]) end,
+        timer:sleep(1000).
 
 b(BrokerPid) ->
     io:format("Spawned Jim: ~p~n", [self()]),
@@ -40,7 +40,7 @@ b(BrokerPid) ->
         timer:sleep(100),
     io:format("Jim got proposition from: ~p Items are ~p ~n", [SellerPid, TradeItems]),
     fsm_broker:ready(self(), BrokerPid),
+        timer:sleep(1000),
+    fsm_broker:is_transaction_success(BrokerPid),
+    receive {IsSuccess} -> io:format("Jim got items in exchange: ~p ~n", [IsSuccess]) end,
         timer:sleep(1000).
-    % fsm_broker:is_transaction_success(self(), TradeId, BrokerPid),
-    % receive IsSuccess -> io:format("Is transaction success: ~p~n", [IsSuccess]) end,
-    %     timer:sleep(1000).
