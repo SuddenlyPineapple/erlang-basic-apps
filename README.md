@@ -1,4 +1,4 @@
-# Designing a concurent application
+# Zad1 - Designing a concurent application
 https://learnyousomeerlang.com/designing-a-concurrent-application
 
 ## To compile modules
@@ -52,3 +52,12 @@ true
 7> whereis(evserv).
 undefined
 ```
+
+# Zad2 - Finite State Machine
+https://learnyousomeerlang.com/finite-state-machines
+For distributed solution: https://learnyousomeerlang.com/distribunomicon
+
+## To run paste these commands:
+Compile: `erl -make`
+Run erlang machine with previously compiled modules: `erl -pa ebin/`
+Run testing funciton: `broker_calls:main_a_broker_b().`
