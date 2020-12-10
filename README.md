@@ -58,6 +58,6 @@ https://learnyousomeerlang.com/finite-state-machines
 For distributed solution: https://learnyousomeerlang.com/distribunomicon
 
 ## To run paste these commands:
-Compile: `erl -make`
-Run erlang machine with previously compiled modules: `erl -pa ebin/`
-Run testing funciton: `broker_calls:main_a_broker_b().`
+Compile: `erl -make` <br />
+Run erlang machine with previously compiled modules: `erl -pa ebin/` <br />
+Run testing funciton: `broker_calls:main_a_broker_b().` <br />
